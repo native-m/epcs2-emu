@@ -1,4 +1,4 @@
-#include "sys_memory.h"
+#include "mmu.h"
 
 #include <cassert>
 #include <cstring>
@@ -8,7 +8,7 @@
 
 namespace epcs2 {
 
-SysMemory::SysMemory() {
+MMU::MMU() {
     ee_main_memory_section =
         CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, ee_main_memory_size, "epcs2_ee_memory");
     assert(ee_main_memory_section != nullptr);
@@ -57,7 +57,7 @@ SysMemory::SysMemory() {
     assert(scratchpad_memory != nullptr);
 }
 
-SysMemory::~SysMemory() {
+MMU::~MMU() {
     UnmapViewOfFile(ee_main_memory0);
     UnmapViewOfFile(ee_main_memory1);
     UnmapViewOfFile(ee_main_memory2);
@@ -68,10 +68,10 @@ SysMemory::~SysMemory() {
     CloseHandle(ee_main_memory_section);
 }
 
-void SysMemory::write_data(uint32_t start_addr, const void* src, size_t size) {
+void MMU::write_data(uint32_t start_addr, const void* src, size_t size) {
     std::memcpy((void*)(vm_base_address + start_addr), src, size);
 }
 
-SysMemory SysMemory::self {};
+MMU MMU::self {};
 
 } // namespace epcs2

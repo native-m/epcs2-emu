@@ -10,15 +10,16 @@ project("epcs2-emu")
 
 add_executable(epcs2-emu
     "src/core/intrinsics.h"
+    "src/core/log.h"
     "src/core/os.cpp"
     "src/core/os.h"
     "src/core/types.h"
     "src/app.cpp"
+    "src/mmu.h"
+    "src/mmu.cpp"
     "src/r5900_regs.h"
     "src/r5900_vcpu.cpp"
-    "src/r5900_vcpu.h"
-    "src/sys_memory.h"
-    "src/sys_memory.cpp")
+    "src/r5900_vcpu.h")
 
 if (WIN32)
     target_link_libraries(epcs2-emu PRIVATE onecore.lib)

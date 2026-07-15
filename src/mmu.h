@@ -4,7 +4,7 @@
 
 namespace epcs2 {
 
-struct SysMemory {
+struct MMU {
     static constexpr uintptr_t vm_base_address = 0x80000000ull;
 
     static constexpr size_t ee_main_memory_size = 32 * 1024 * 1024;
@@ -33,8 +33,8 @@ struct SysMemory {
     void* gs_registers;
     void* scratchpad_memory;
 
-    SysMemory();
-    ~SysMemory();
+    MMU();
+    ~MMU();
 
     inline uint32_t read32(uint32_t addr) { return *reinterpret_cast<uint32_t*>(vm_base_address + addr); }
 
@@ -42,7 +42,7 @@ struct SysMemory {
 
     void write_data(uint32_t start_addr, const void* src, size_t size);
 
-    static SysMemory self;
+    static MMU self;
 };
 
 } // namespace epcs2

@@ -368,6 +368,10 @@ inline uint32_t decode_rs(uint32_t instruction) {
     return (instruction >> 21) & 0x1f;
 }
 
+inline uint32_t decode_rd(uint32_t instruction) {
+    return (instruction >> 11) & 0x1f;
+}
+
 inline std::pair<uint32_t, uint32_t> decode_rs_rt(uint32_t instruction) {
     return {
         (instruction >> 21) & 0x1f,
@@ -398,16 +402,25 @@ inline std::tuple<uint32_t, uint32_t, uint32_t> decode_rt_rd_sa(uint32_t instruc
     };
 }
 
-inline uint32_t encode_rtype(uint32_t opcode, uint32_t rs, uint32_t rt, uint32_t rd, uint32_t sa, uint32_t func) {
+inline constexpr uint32_t encode_rtype(uint32_t opcode, uint32_t rs, uint32_t rt, uint32_t rd, uint32_t sa,
+                                       uint32_t func) {
     return (opcode << 26) | (rs << 21) | (rt << 16) | (rd << 11) | (sa << 6) | func;
 }
 
-inline uint32_t encode_itype(uint32_t opcode, uint32_t rs, uint32_t rt, uint16_t immediate) {
+inline constexpr uint32_t encode_itype(uint32_t opcode, uint32_t rs, uint32_t rt, uint16_t immediate) {
     return (opcode << 26) | (rs << 21) | (rt << 16) | immediate;
 }
 
-inline uint32_t encode_jtype(uint32_t opcode, uint32_t target) {
-    return (opcode << 26) | (target & 0x3ffffff);
+inline constexpr uint32_t encode_jtype(uint32_t opcode, uint32_t target) {
+    return (opcode << 26) | ((target >> 2) & 0x3ffffff);
 }
+
+inline constexpr uint32_t encode_exception(uint32_t opcode, uint32_t code, uint32_t func) {
+    return (opcode << 26) | (code << 6) | func;
+}
+
+static constexpr uint32_t mips_nop = 0;
+
+static constexpr uint32_t mips_break0 = 0x0000000D;
 
 } // namespace epcs2
