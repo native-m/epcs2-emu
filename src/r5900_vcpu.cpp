@@ -37,15 +37,35 @@ void R5900VCPU::tick() {
             break;
         }
         case MIPS_OP_BEQ: {
+            const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            if (gpr[rs].u32 == gpr[rt].u32) {
+                next_pc = current_pc + imm + 4;
+            }
             break;
         }
         case MIPS_OP_BNE: {
+            const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            if (gpr[rs].u32 != gpr[rt].u32) {
+                next_pc = current_pc + imm + 4;
+            }
             break;
         }
         case MIPS_OP_BLEZ: {
+            const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            if (gpr[rs].i32 <= 0) {
+                next_pc = current_pc + imm + 4;
+            }
             break;
         }
         case MIPS_OP_BGTZ: {
+            const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            if (gpr[rs].i32 > 0) {
+                next_pc = current_pc + imm + 4;
+            }
             break;
         }
         case MIPS_OP_ADDI: {
@@ -66,10 +86,18 @@ void R5900VCPU::tick() {
             gpr[rt].i32 = gpr[rs].i32 + imm;
             break;
         }
-        case MIPS_OP_SLTI:
+        case MIPS_OP_SLTI: {
+            const int64_t imm = (int64_t)decode_imm_i16(instruction);
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            gpr[rt].u64 = gpr[rs].i64 < imm;
             break;
-        case MIPS_OP_SLTIU:
+        }
+        case MIPS_OP_SLTIU: {
+            const int64_t imm = (int64_t)decode_imm_i16(instruction);
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            gpr[rt].u64 = gpr[rs].u64 < imm;
             break;
+        }
         case MIPS_OP_ANDI: {
             const uint32_t imm = decode_imm_u16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
@@ -228,10 +256,20 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             next_pc = gpr[rs].u32;
             break;
         }
-        case MIPS_SPECIAL_MOVZ:
+        case MIPS_SPECIAL_MOVZ: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            if (gpr[rs].u32 == 0) {
+                gpr[rd].u32 = gpr[rt].u32;
+            }
             break;
-        case MIPS_SPECIAL_MOVN:
+        }
+        case MIPS_SPECIAL_MOVN: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            if (gpr[rs].u32 != 0) {
+                gpr[rd].u32 = gpr[rt].u32;
+            }
             break;
+        }
         case MIPS_SPECIAL_SYSCALL:
             break;
         case MIPS_SPECIAL_BREAK:
@@ -246,12 +284,21 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             break;
         case MIPS_SPECIAL_MTLO:
             break;
-        case MIPS_SPECIAL_DSLLV:
+        case MIPS_SPECIAL_DSLLV: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].u64 = gpr[rt].u64 << gpr[rs].u64;
             break;
-        case MIPS_SPECIAL_DSRLV:
+        }
+        case MIPS_SPECIAL_DSRLV: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].u64 = gpr[rt].u64 >> gpr[rs].u64;
             break;
-        case MIPS_SPECIAL_DSRAV:
+        }
+        case MIPS_SPECIAL_DSRAV: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].i64 = gpr[rt].i64 >> gpr[rs].u64;
             break;
+        }
         case MIPS_SPECIAL_MULT: {
             const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
             const int64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
@@ -354,18 +401,50 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             break;
         case MIPS_SPECIAL_MTSA:
             break;
-        case MIPS_SPECIAL_SLT:
+        case MIPS_SPECIAL_SLT: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].u64 = gpr[rs].i64 < gpr[rt].i64;
             break;
-        case MIPS_SPECIAL_SLTU:
+        }
+        case MIPS_SPECIAL_SLTU: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].u64 = gpr[rs].u64 < gpr[rt].u64;
             break;
-        case MIPS_SPECIAL_DADD:
+        }
+        case MIPS_SPECIAL_DADD: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const int64_t a = gpr[rs].i64;
+            const int64_t b = gpr[rt].i64;
+            int64_t result;
+            if (!add_overflow(a, b, result)) {
+                gpr[rd].i64 = result;
+            } else {
+                // TODO: handle overflow
+            }
             break;
-        case MIPS_SPECIAL_DADDU:
+        }
+        case MIPS_SPECIAL_DADDU: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].i64 = gpr[rs].i64 + gpr[rt].i64;
             break;
-        case MIPS_SPECIAL_DSUB:
+        }
+        case MIPS_SPECIAL_DSUB: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const int64_t a = gpr[rs].i64;
+            const int64_t b = gpr[rt].i64;
+            int64_t result;
+            if (!sub_overflow(a, b, result)) {
+                gpr[rd].i64 = result;
+            } else {
+                // TODO: handle overflow
+            }
             break;
-        case MIPS_SPECIAL_DSUBU:
+        }
+        case MIPS_SPECIAL_DSUBU: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            gpr[rd].i64 = gpr[rs].i64 - gpr[rt].i64;
             break;
+        }
         case MIPS_SPECIAL_TGE:
             break;
         case MIPS_SPECIAL_TGEU:
@@ -378,18 +457,36 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             break;
         case MIPS_SPECIAL_TNE:
             break;
-        case MIPS_SPECIAL_DSLL:
+        case MIPS_SPECIAL_DSLL: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            gpr[rd].u64 = gpr[rt].u64 << sa;
             break;
-        case MIPS_SPECIAL_DSRL:
+        }
+        case MIPS_SPECIAL_DSRL: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            gpr[rd].u64 = gpr[rt].u64 >> sa;
             break;
-        case MIPS_SPECIAL_DSRA:
+        }
+        case MIPS_SPECIAL_DSRA: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            gpr[rd].i64 = gpr[rt].i64 >> sa;
             break;
-        case MIPS_SPECIAL_DSLL32:
+        }
+        case MIPS_SPECIAL_DSLL32: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            gpr[rd].u64 = gpr[rt].u64 << (sa + 32);
             break;
-        case MIPS_SPECIAL_DSRL32:
+        }
+        case MIPS_SPECIAL_DSRL32: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            gpr[rd].u64 = gpr[rt].u64 >> (sa + 32);
             break;
-        case MIPS_SPECIAL_DSRA32:
+        }
+        case MIPS_SPECIAL_DSRA32: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            gpr[rd].i64 = gpr[rt].i64 >> (sa + 32);
             break;
+        } break;
     }
 }
 
