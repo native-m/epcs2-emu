@@ -21,6 +21,7 @@ struct R5900VCPU {
     void exec_special(uint32_t instruction);
     void exec_regimm(uint32_t instruction);
     void exec_fpu(uint32_t instruction);
+    void exec_mmi(uint32_t instruction);
 };
 
 } // namespace epcs2

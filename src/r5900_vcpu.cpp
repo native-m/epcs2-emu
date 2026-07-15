@@ -717,5 +717,132 @@ void R5900VCPU::exec_regimm(uint32_t instruction) {
 void R5900VCPU::exec_fpu(uint32_t instruction) {
 }
 
+void R5900VCPU::exec_mmi(uint32_t instruction) {
+    R5900MmiFunction func = decode_func<R5900MmiFunction>(instruction);
+    switch (func) {
+        case R5900_MMI_MADD: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const int64_t a = (int64_t)(lo.u64 | (hi.u64 << 32));
+            const int64_t b = (int64_t)gpr[rs].i32;
+            const int64_t c = (int64_t)gpr[rt].i32;
+            const int64_t result = a + b * c;
+            lo.i64 = (int64_t)(result & 0xFFFFFFFF);
+            hi.i64 = (int64_t)(result >> 32);
+            gpr[rd].i64 = lo.i64;
+            break;
+        }
+        case R5900_MMI_MADDU: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const uint64_t a = (uint64_t)(lo.u64 | (hi.u64 << 32));
+            const uint64_t b = (uint64_t)gpr[rs].u32;
+            const uint64_t c = (uint64_t)gpr[rt].u32;
+            const uint64_t result = a + b * c;
+            lo.i64 = (uint64_t)(result & 0xFFFFFFFF);
+            hi.i64 = (uint64_t)(result >> 32);
+            gpr[rd].i64 = lo.i64;
+            break;
+        }
+        case R5900_MMI_PLZCW:
+            break;
+        case R5900_MMI_MMI0:
+            break;
+        case R5900_MMI_MMI2:
+            break;
+        case R5900_MMI_MFHI1:
+            break;
+        case R5900_MMI_MTHI1:
+            break;
+        case R5900_MMI_MFLO1:
+            break;
+        case R5900_MMI_MTLO1:
+            break;
+        case R5900_MMI_MULT1:
+            break;
+        case R5900_MMI_MULTU1:
+            break;
+        case R5900_MMI_DIV1:
+            break;
+        case R5900_MMI_DIVU1:
+            break;
+        case R5900_MMI_MADD1: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const uint64_t lo_h = lo.u128.u64_2[1] & 0xFFFFFFFF;
+            const uint64_t hi_h = hi.u128.u64_2[1] & 0xFFFFFFFF;
+            const int64_t a = (int64_t)(lo_h | (hi_h << 32));
+            const int64_t b = (int64_t)gpr[rs].i32;
+            const int64_t c = (int64_t)gpr[rt].i32;
+            const int64_t result = a + b * c;
+            lo.i128.i64_2[1] = (int64_t)(result & 0xFFFFFFFF);
+            hi.i128.i64_2[1] = (int64_t)(result >> 32);
+            gpr[rd].i64 = lo.i64;
+            break;
+        }
+        case R5900_MMI_MADDU1: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const uint64_t lo_h = lo.u128.u64_2[1] & 0xFFFFFFFF;
+            const uint64_t hi_h = hi.u128.u64_2[1] & 0xFFFFFFFF;
+            const uint64_t a = (uint64_t)(lo_h | (hi_h << 32));
+            const uint64_t b = (uint64_t)gpr[rs].u32;
+            const uint64_t c = (uint64_t)gpr[rt].u32;
+            const uint64_t result = a + b * c;
+            lo.i64 = (uint64_t)(result & 0xFFFFFFFF);
+            hi.i64 = (uint64_t)(result >> 32);
+            gpr[rd].i64 = lo.i64;
+            break;
+        }
+        case R5900_MMI_MMI1:
+            break;
+        case R5900_MMI_MMI3:
+            break;
+        case R5900_MMI_PMFHL:
+            break;
+        case R5900_MMI_PMTHL:
+            break;
+        case R5900_MMI_PSLLH: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            for (int i = 0; i < 8; i++) {
+                gpr[rd].u128.u16_8[i] = gpr[rd].u128.u16_8[i] << sa;
+            }
+            break;
+        }
+        case R5900_MMI_PSRLH: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            for (int i = 0; i < 8; i++) {
+                gpr[rd].u128.u16_8[i] = gpr[rd].u128.u16_8[i] >> sa;
+            }
+            break;
+        }
+        case R5900_MMI_PSRAH: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            for (int i = 0; i < 8; i++) {
+                gpr[rd].i128.i16_8[i] = gpr[rd].i128.i16_8[i] >> sa;
+            }
+            break;
+        }
+        case R5900_MMI_PSLLW: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            for (int i = 0; i < 4; i++) {
+                gpr[rd].u128.u32_4[i] = gpr[rd].u128.u32_4[i] << sa;
+            }
+            break;
+        }
+        case R5900_MMI_PSRLW: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            for (int i = 0; i < 4; i++) {
+                gpr[rd].u128.u32_4[i] = gpr[rd].u128.u32_4[i] >> sa;
+            }
+            break;
+        }
+        case R5900_MMI_PSRAW: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            for (int i = 0; i < 4; i++) {
+                gpr[rd].i128.i32_4[i] = gpr[rd].i128.i32_4[i] >> sa;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
 
 } // namespace epcs2

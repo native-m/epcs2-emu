@@ -9,6 +9,7 @@ union i128 {
     };
     int64_t i64_2[2];
     int32_t i32_4[4];
+    int32_t i16_8[4];
 };
 
 union u128 {
