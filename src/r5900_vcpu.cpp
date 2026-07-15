@@ -22,7 +22,7 @@ void R5900VCPU::tick() {
     uint32_t instruction = MMU::self.read32(current_pc);
     if (instruction == 0) {
         // Skip NOP
-        LOG_VERBOSE("Executed NOP");
+        LOG_VERBOSE("[0x%08x] Executed NOP", current_pc);
         return;
     }
 
@@ -245,10 +245,26 @@ void R5900VCPU::tick() {
             break;
         case MIPS_OP_SQ:
             break;
-        case MIPS_OP_LB:
+        case MIPS_OP_LB: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            gpr[rt].i64 = (int64_t)MMU::self.read8(addr);
+            LOG_VERBOSE("[0x%08x] Executed LB $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
-        case MIPS_OP_LH:
+        }
+        case MIPS_OP_LH: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            if (addr & 1) {
+                LOG_ERROR("[0x%08x] LH unaligned address 0x%x", current_pc, addr);
+                break;
+            }
+            gpr[rt].i64 = (int64_t)MMU::self.read16(addr);
+            LOG_VERBOSE("[0x%08x] Executed LH $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
+        }
         case MIPS_OP_LWL:
             break;
         case MIPS_OP_LW: {
@@ -287,10 +303,26 @@ void R5900VCPU::tick() {
             LOG_VERBOSE("[0x%08x] Executed LWU $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
-        case MIPS_OP_SB:
+        case MIPS_OP_SB: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            MMU::self.write8(addr, gpr[rt].u8);
+            LOG_VERBOSE("[0x%08x] Executed SB $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
-        case MIPS_OP_SH:
+        }
+        case MIPS_OP_SH: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            if (addr & 1) {
+                LOG_ERROR("[0x%08x] SH unaligned address 0x%x", current_pc, addr);
+                break;
+            }
+            MMU::self.write16(addr, gpr[rt].u16);
+            LOG_VERBOSE("[0x%08x] Executed SH $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
+        }
         case MIPS_OP_SWL:
             break;
         case MIPS_OP_SW: {
@@ -336,6 +368,8 @@ void R5900VCPU::tick() {
         case MIPS_OP_SQC2:
             break;
         case MIPS_OP_SD:
+            break;
+        default:
             break;
     }
 }
@@ -634,7 +668,9 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
             gpr[rd].i64 = gpr[rt].i64 >> (sa + 32);
             break;
-        } break;
+        }
+        default:
+            break;
     }
 }
 
@@ -673,10 +709,13 @@ void R5900VCPU::exec_regimm(uint32_t instruction) {
             break;
         case MIPS_REGIMM_MTSAH:
             break;
+        default:
+            break;
     }
 }
 
 void R5900VCPU::exec_fpu(uint32_t instruction) {
 }
+
 
 } // namespace epcs2
