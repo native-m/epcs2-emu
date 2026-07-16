@@ -11,6 +11,8 @@ struct R5900VCPU {
     R5900Register hi {};
     R5900Register lo {};
 
+    R5900ControlFPU control_fpu {};
+
     uint32_t pc {};
     uint32_t current_pc {};
     uint32_t next_pc {};

@@ -368,8 +368,16 @@ inline uint32_t decode_rs(uint32_t instruction) {
     return (instruction >> 21) & 0x1f;
 }
 
+inline uint32_t decode_rt(uint32_t instruction) {
+    return (instruction >> 16) & 0x1f;
+}
+
 inline uint32_t decode_rd(uint32_t instruction) {
     return (instruction >> 11) & 0x1f;
+}
+
+inline uint32_t decode_sa(uint32_t instruction) {
+    return (instruction >> 6) & 0x1f;
 }
 
 inline std::pair<uint32_t, uint32_t> decode_rs_rt(uint32_t instruction) {

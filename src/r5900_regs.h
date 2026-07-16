@@ -22,4 +22,22 @@ union R5900RegisterFPU {
     uint32_t u32;
 };
 
+union R5900ControlFPU {
+    struct {
+        uint32_t _pad0 : 3;
+        uint32_t underflow_s : 1;
+        uint32_t overflow_s : 1;
+        uint32_t division_by_zero_s : 1;
+        uint32_t invalid_operation_s : 1;
+        uint32_t _pad1 : 7;
+        uint32_t underflow : 1;
+        uint32_t overflow : 1;
+        uint32_t division_by_zero : 1;
+        uint32_t invalid_operation : 1;
+        uint32_t _pad2 : 5;
+        uint32_t condition : 1;
+    };
+    uint32_t u32;
+};
+
 } // namespace epcs2

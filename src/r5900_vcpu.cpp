@@ -434,10 +434,8 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             break;
         }
         case MIPS_SPECIAL_SYSCALL:
-            assert(false && "Syscall");
             break;
         case MIPS_SPECIAL_BREAK:
-            assert(false && "Break");
             break;
         case MIPS_SPECIAL_SYNC:
             break;
@@ -717,7 +715,48 @@ void R5900VCPU::exec_regimm(uint32_t instruction) {
 
 void R5900VCPU::exec_fpu(uint32_t instruction) {
     MIPSFpuSFunction func = decode_func<MIPSFpuSFunction>(instruction);
-    
+    switch (func) {
+        case MIPS_FPU_S_ABS_S: {
+            const uint32_t rt = decode_rt(instruction);
+            const uint32_t sa = decode_sa(instruction);
+            fpr[sa].u32 = fpr[rt].u32 & 0x7fffffff;
+            control_fpu.overflow = 0;
+            control_fpu.underflow = 0;
+            break;
+        }
+        case MIPS_FPU_S_MOV_S: {
+            const uint32_t rt = decode_rt(instruction);
+            const uint32_t sa = decode_sa(instruction);
+            fpr[sa].f32 = fpr[rt].f32;
+            break;
+        }
+        case MIPS_FPU_S_NEG_S: {
+            const uint32_t rt = decode_rt(instruction);
+            const uint32_t sa = decode_sa(instruction);
+            fpr[sa].f32 = -fpr[rt].f32;
+            control_fpu.overflow = 0;
+            control_fpu.underflow = 0;
+            break;
+        }
+        case MIPS_FPU_S_MAX_S: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            float a = fpr[rd].f32;
+            float b = fpr[rt].f32;
+            fpr[sa].f32 = a >= b ? a : b;
+            control_fpu.overflow = 0;
+            control_fpu.underflow = 0;
+            break;
+        }
+        case MIPS_FPU_S_MIN_S: {
+            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+            float a = fpr[rd].f32;
+            float b = fpr[rt].f32;
+            fpr[sa].f32 = a <= b ? a : b;
+            control_fpu.overflow = 0;
+            control_fpu.underflow = 0;
+            break;
+        }
+    }
 }
 
 void R5900VCPU::exec_mmi(uint32_t instruction) {
