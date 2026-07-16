@@ -68,8 +68,12 @@ MMU::~MMU() {
     CloseHandle(ee_main_memory_section);
 }
 
-void MMU::write_data(uint32_t start_addr, const void* src, size_t size) {
+void MMU::write(uint32_t start_addr, const void* src, size_t size) {
     std::memcpy((void*)(vm_base_address + start_addr), src, size);
+}
+
+void MMU::erase(uint32_t start_addr, size_t size) {
+    std::memset((void*)(vm_base_address + start_addr), 0, size);
 }
 
 MMU MMU::self {};

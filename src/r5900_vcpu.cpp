@@ -93,7 +93,7 @@ void R5900VCPU::tick() {
             const int32_t b = (int32_t)decode_imm_i16(instruction);
             int32_t result;
             if (!add_overflow(a, b, result)) {
-                gpr[rs].i32 = result;
+                gpr[rs].i64 = result;
             } else {
                 // TODO: handle overflow
                 LOG_VERBOSE("[0x%08x] ADDI overflow!", current_pc);
@@ -104,7 +104,7 @@ void R5900VCPU::tick() {
         case MIPS_OP_ADDIU: {
             const int32_t imm = (int32_t)decode_imm_i16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
-            gpr[rt].i32 = gpr[rs].i32 + imm;
+            gpr[rt].i64 = (int64_t)(gpr[rs].i32 + imm);
             LOG_VERBOSE("[0x%08x] Executed ADDIU $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
@@ -240,6 +240,7 @@ void R5900VCPU::tick() {
         case MIPS_OP_LDR:
             break;
         case MIPS_OP_MMI:
+            exec_mmi(instruction);
             break;
         case MIPS_OP_LQ:
             break;
@@ -478,15 +479,15 @@ void R5900VCPU::exec_special(uint32_t instruction) {
         case MIPS_SPECIAL_MULT: {
             const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
             const int64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
-            lo.u64 = (uint64_t)result;
-            hi.u64 = (uint64_t)result >> 32;
+            lo.u64 = (int64_t)((int32_t)result);
+            hi.u64 = (int64_t)((uint32_t)result >> 32);
             break;
         }
         case MIPS_SPECIAL_MULTU: {
             const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
-            const uint64_t result = gpr[rs].u32 * gpr[rt].u32;
-            lo.u64 = result;
-            hi.u64 = result >> 32;
+            const uint64_t result = (uint64_t)gpr[rs].u32 * (uint64_t)gpr[rt].u32;
+            lo.u64 = (int64_t)((uint32_t)result);
+            hi.u64 = (int64_t)((uint32_t)result >> 32);
             break;
         }
         case MIPS_SPECIAL_DIV: {
@@ -495,14 +496,14 @@ void R5900VCPU::exec_special(uint32_t instruction) {
             const int32_t b = gpr[rt].i32;
             if (b == 0) [[unlikely]] {
                 lo.u64 = a >= 0 ? ~0U : 1u;
-                hi.u64 = (uint32_t)a;
+                hi.i64 = (int64_t)a;
             } else if (a == INT32_MIN && b == -1) [[unlikely]] {
                 // Does not raise exception, instead return these following values
                 lo.u64 = 0x80000000;
                 hi.u64 = 0;
             } else [[likely]] {
-                lo.u64 = (uint32_t)(a / b);
-                hi.u64 = (uint32_t)(a % b);
+                lo.i64 = a / b;
+                hi.i64 = a % b;
             }
             break;
         }
@@ -715,6 +716,8 @@ void R5900VCPU::exec_regimm(uint32_t instruction) {
 }
 
 void R5900VCPU::exec_fpu(uint32_t instruction) {
+    MIPSFpuSFunction func = decode_func<MIPSFpuSFunction>(instruction);
+    
 }
 
 void R5900VCPU::exec_mmi(uint32_t instruction) {
@@ -742,24 +745,49 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             gpr[rd].i64 = lo.i64;
             break;
         }
-        case R5900_MMI_PLZCW:
+        case R5900_MMI_PLZCW: {
             break;
+        }
         case R5900_MMI_MMI0:
             break;
         case R5900_MMI_MMI2:
             break;
-        case R5900_MMI_MFHI1:
+        case R5900_MMI_MFHI1: {
+            const uint32_t rd = decode_rd(instruction);
+            gpr[rd].u64 = hi.u128.u64_2[1];
             break;
-        case R5900_MMI_MTHI1:
+        }
+        case R5900_MMI_MTHI1: {
+            const uint32_t rs = decode_rs(instruction);
+            hi.u128.u64_2[1] = gpr[rs].u64;
             break;
-        case R5900_MMI_MFLO1:
+        }
+        case R5900_MMI_MFLO1: {
+            const uint32_t rd = decode_rd(instruction);
+            gpr[rd].u64 = lo.u128.u64_2[1];
             break;
-        case R5900_MMI_MTLO1:
+        }
+        case R5900_MMI_MTLO1: {
+            const uint32_t rs = decode_rs(instruction);
+            lo.u128.u64_2[1] = gpr[rs].u64;
             break;
-        case R5900_MMI_MULT1:
+        }
+        case R5900_MMI_MULT1: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const int64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
+            lo.i128.i64_2[1] = (int64_t)((int32_t)result);
+            hi.i128.i64_2[1] = (int64_t)((uint32_t)result >> 32);
+            gpr[rd].i64 = lo.i128.i64_2[1];
             break;
-        case R5900_MMI_MULTU1:
+        }
+        case R5900_MMI_MULTU1: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const uint64_t result = (uint64_t)gpr[rs].u32 * (uint64_t)gpr[rt].u32;
+            lo.i128.i64_2[1] = (int64_t)((uint32_t)result);
+            hi.i128.i64_2[1] = (int64_t)((uint32_t)result >> 32);
+            gpr[rd].i64 = lo.i128.i64_2[1];
             break;
+        }
         case R5900_MMI_DIV1:
             break;
         case R5900_MMI_DIVU1:
@@ -772,9 +800,9 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             const int64_t b = (int64_t)gpr[rs].i32;
             const int64_t c = (int64_t)gpr[rt].i32;
             const int64_t result = a + b * c;
-            lo.i128.i64_2[1] = (int64_t)(result & 0xFFFFFFFF);
-            hi.i128.i64_2[1] = (int64_t)(result >> 32);
-            gpr[rd].i64 = lo.i64;
+            lo.i128.i64_2[1] = (int64_t)(int32_t)(result);
+            hi.i128.i64_2[1] = (int64_t)((uint32_t)result >> 32);
+            gpr[rd].i64 = lo.i128.i64_2[1];
             break;
         }
         case R5900_MMI_MADDU1: {
@@ -785,9 +813,9 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             const uint64_t b = (uint64_t)gpr[rs].u32;
             const uint64_t c = (uint64_t)gpr[rt].u32;
             const uint64_t result = a + b * c;
-            lo.i64 = (uint64_t)(result & 0xFFFFFFFF);
-            hi.i64 = (uint64_t)(result >> 32);
-            gpr[rd].i64 = lo.i64;
+            lo.i128.i64_2[1] = (int64_t)((uint32_t)result);
+            hi.i128.i64_2[1] = (int64_t)((uint32_t)result >> 32);
+            gpr[rd].i64 = lo.i128.i64_2[1];
             break;
         }
         case R5900_MMI_MMI1:

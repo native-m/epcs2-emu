@@ -19,7 +19,7 @@ int main() {
         /*0x20*/ epcs2::mips_break0,
     };
 
-    epcs2::MMU::self.write_data(0x00100000, program, sizeof(program));
+    epcs2::MMU::self.write(0x00100000, program, sizeof(program));
 
     for (;;) {
         r5900.tick();

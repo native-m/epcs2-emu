@@ -48,7 +48,9 @@ struct MMU {
 
     inline void write32(uint32_t addr, uint32_t data) { *reinterpret_cast<uint32_t*>(vm_base_address + addr) = data; }
 
-    void write_data(uint32_t start_addr, const void* src, size_t size);
+    void write(uint32_t start_addr, const void* src, size_t size);
+
+    void erase(uint32_t start_addr, size_t size);
 
     static MMU self;
 };
