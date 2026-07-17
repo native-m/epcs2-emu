@@ -7,6 +7,12 @@
 #include <cassert>
 #include <cstdint>
 
+#define LOG_INSTRUCTION_STEP 1
+
+#if LOG_INSTRUCTION_STEP
+#define LOG_I(...) LOG_VERBOSE(__VA_ARGS__)
+#endif
+
 namespace epcs2 {
 
 void R5900VCPU::set_pc(uint32_t addr) {
@@ -22,7 +28,7 @@ void R5900VCPU::tick() {
     uint32_t instruction = MMU::self.read32(current_pc);
     if (instruction == 0) {
         // Skip NOP
-        LOG_VERBOSE("[0x%08x] Executed NOP", current_pc);
+        LOG_I("[0x%08x] Executed NOP", current_pc);
         return;
     }
 
@@ -37,14 +43,14 @@ void R5900VCPU::tick() {
         case MIPS_OP_J: {
             const uint32_t target = decode_target(instruction);
             next_pc = (current_pc & 0xF0000000) | (target << 2);
-            LOG_VERBOSE("[0x%08x] Executed J 0x%x (next PC: 0x%x)", current_pc, target << 2, next_pc);
+            LOG_I("[0x%08x] Executed J 0x%x (next PC: 0x%x)", current_pc, target << 2, next_pc);
             break;
         }
         case MIPS_OP_JAL: {
             const uint32_t target = decode_target(instruction);
             gpr[31].u64 = current_pc + 8;
             next_pc = (current_pc & 0xF0000000) | (target << 2);
-            LOG_VERBOSE("[0x%08x] Executed JAL 0x%x (next PC: 0x%x)", current_pc, target << 2, next_pc);
+            LOG_I("[0x%08x] Executed JAL 0x%x (next PC: 0x%x)", current_pc, target << 2, next_pc);
             break;
         }
         case MIPS_OP_BEQ: {
@@ -52,9 +58,9 @@ void R5900VCPU::tick() {
             const auto [rs, rt] = decode_rs_rt(instruction);
             if (gpr[rs].u64 == gpr[rt].u64) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BEQ branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BEQ branch taken. Next PC -> 0x%x", current_pc, next_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BEQ $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed BEQ $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_BNE: {
@@ -62,9 +68,9 @@ void R5900VCPU::tick() {
             const auto [rs, rt] = decode_rs_rt(instruction);
             if (gpr[rs].u64 != gpr[rt].u64) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BNE branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BNE branch taken. Next PC -> 0x%x", current_pc, next_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BNE $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed BNE $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_BLEZ: {
@@ -72,9 +78,9 @@ void R5900VCPU::tick() {
             const auto [rs, rt] = decode_rs_rt(instruction);
             if (gpr[rs].i64 <= 0) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BLEZ branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BLEZ branch taken. Next PC -> 0x%x", current_pc, next_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BLEZ $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed BLEZ $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_BGTZ: {
@@ -82,9 +88,9 @@ void R5900VCPU::tick() {
             const auto [rs, rt] = decode_rs_rt(instruction);
             if (gpr[rs].i64 > 0) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BGTZ branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BGTZ branch taken. Next PC -> 0x%x", current_pc, next_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BGTZ $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed BGTZ $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_ADDI: {
@@ -96,58 +102,58 @@ void R5900VCPU::tick() {
                 gpr[rs].i64 = result;
             } else {
                 // TODO: handle overflow
-                LOG_VERBOSE("[0x%08x] ADDI overflow!", current_pc);
+                LOG_I("[0x%08x] ADDI overflow!", current_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed ADDI $%d, $%d, %d", current_pc, rs, rt, b);
+            LOG_I("[0x%08x] Executed ADDI $%d, $%d, %d", current_pc, rs, rt, b);
             break;
         }
         case MIPS_OP_ADDIU: {
             const int32_t imm = (int32_t)decode_imm_i16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].i64 = (int64_t)(gpr[rs].i32 + imm);
-            LOG_VERBOSE("[0x%08x] Executed ADDIU $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed ADDIU $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_SLTI: {
             const int64_t imm = (int64_t)decode_imm_i16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].u64 = gpr[rs].i64 < imm;
-            LOG_VERBOSE("[0x%08x] Executed SLTI $%d, $%d, %d", current_pc, rs, rt, (int32_t)imm);
+            LOG_I("[0x%08x] Executed SLTI $%d, $%d, %d", current_pc, rs, rt, (int32_t)imm);
             break;
         }
         case MIPS_OP_SLTIU: {
             const uint64_t imm = (int64_t)decode_imm_i16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].u64 = gpr[rs].u64 < imm;
-            LOG_VERBOSE("[0x%08x] Executed SLTIU $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
+            LOG_I("[0x%08x] Executed SLTIU $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
             break;
         }
         case MIPS_OP_ANDI: {
             const uint64_t imm = decode_imm_u16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].u64 = gpr[rs].u64 & imm;
-            LOG_VERBOSE("[0x%08x] Executed ANDI $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
+            LOG_I("[0x%08x] Executed ANDI $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
             break;
         }
         case MIPS_OP_ORI: {
             const uint64_t imm = decode_imm_u16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].u64 = gpr[rs].u64 | imm;
-            LOG_VERBOSE("[0x%08x] Executed ORI $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
+            LOG_I("[0x%08x] Executed ORI $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
             break;
         }
         case MIPS_OP_XORI: {
             const uint64_t imm = decode_imm_u16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].u64 = gpr[rs].u64 ^ imm;
-            LOG_VERBOSE("[0x%08x] Executed XORI $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
+            LOG_I("[0x%08x] Executed XORI $%d, $%d, %d", current_pc, rs, rt, (uint32_t)imm);
             break;
         }
         case MIPS_OP_LUI: {
             const uint32_t imm = decode_imm_u16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].i32 = (int32_t)(imm << 16);
-            LOG_VERBOSE("[0x%08x] Executed LUI $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed LUI $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_COP0:
@@ -164,13 +170,13 @@ void R5900VCPU::tick() {
             const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
             if (gpr[rs].u64 == gpr[rt].u64) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BEQL branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BEQL branch taken. Next PC -> 0x%x", current_pc, next_pc);
             } else {
                 pc = next_pc;
                 next_pc = pc + 4;
-                LOG_VERBOSE("[0x%08x] BEQL branch not taken.", current_pc);
+                LOG_I("[0x%08x] BEQL branch not taken.", current_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BEQL $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed BEQL $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_BNEL: {
@@ -178,13 +184,13 @@ void R5900VCPU::tick() {
             const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
             if (gpr[rs].u64 != gpr[rt].u64) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BNEL branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BNEL branch taken. Next PC -> 0x%x", current_pc, next_pc);
             } else {
                 pc = next_pc;
                 next_pc = pc + 4;
-                LOG_VERBOSE("[0x%08x] BNEL branch not taken.", current_pc);
+                LOG_I("[0x%08x] BNEL branch not taken.", current_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BNEL $%d, $%d, %d", current_pc, rs, rt, imm);
+            LOG_I("[0x%08x] Executed BNEL $%d, $%d, %d", current_pc, rs, rt, imm);
             break;
         }
         case MIPS_OP_BLEZL: {
@@ -192,13 +198,13 @@ void R5900VCPU::tick() {
             const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
             if (gpr[rs].i64 <= 0) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BLEZL branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BLEZL branch taken. Next PC -> 0x%x", current_pc, next_pc);
             } else {
                 pc = next_pc;
                 next_pc = pc + 4;
-                LOG_VERBOSE("[0x%08x] BLEZL branch not taken.", current_pc);
+                LOG_I("[0x%08x] BLEZL branch not taken.", current_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BLEZL $%d, %d", current_pc, rs, imm);
+            LOG_I("[0x%08x] Executed BLEZL $%d, %d", current_pc, rs, imm);
             break;
         }
         case MIPS_OP_BGTZL: {
@@ -206,13 +212,13 @@ void R5900VCPU::tick() {
             const int32_t imm = (int32_t)decode_imm_i16(instruction) << 2;
             if (gpr[rs].i64 > 0) {
                 next_pc = current_pc + imm;
-                LOG_VERBOSE("[0x%08x] BGTZL branch taken. Next PC -> 0x%x", current_pc, next_pc);
+                LOG_I("[0x%08x] BGTZL branch taken. Next PC -> 0x%x", current_pc, next_pc);
             } else {
                 pc = next_pc;
                 next_pc = pc + 4;
-                LOG_VERBOSE("[0x%08x] BLEZL branch not taken.", current_pc);
+                LOG_I("[0x%08x] BLEZL branch not taken.", current_pc);
             }
-            LOG_VERBOSE("[0x%08x] Executed BLEZL $%d, %d", current_pc, rs, imm);
+            LOG_I("[0x%08x] Executed BLEZL $%d, %d", current_pc, rs, imm);
             break;
         }
         case MIPS_OP_DADDI: {
@@ -225,14 +231,14 @@ void R5900VCPU::tick() {
             } else {
                 // TODO: handle overflow
             }
-            LOG_VERBOSE("[0x%08x] Executed DADDI $%d, $%d, %d", current_pc, rs, rt, (int32_t)b);
+            LOG_I("[0x%08x] Executed DADDI $%d, $%d, %d", current_pc, rs, rt, (int32_t)b);
             break;
         }
         case MIPS_OP_DADDIU: {
             const int64_t imm = (int64_t)decode_imm_i16(instruction);
             const auto [rs, rt] = decode_rs_rt(instruction);
             gpr[rt].i64 = gpr[rs].i64 + imm;
-            LOG_VERBOSE("[0x%08x] Executed DADDIU $%d, $%d, %d", current_pc, rs, rt, (int32_t)imm);
+            LOG_I("[0x%08x] Executed DADDIU $%d, $%d, %d", current_pc, rs, rt, (int32_t)imm);
             break;
         }
         case MIPS_OP_LDL:
@@ -251,7 +257,7 @@ void R5900VCPU::tick() {
             const int32_t offset = decode_imm_i16(instruction);
             const uint32_t addr = gpr[rs].u32 + offset;
             gpr[rt].i64 = (int64_t)MMU::self.read8(addr);
-            LOG_VERBOSE("[0x%08x] Executed LB $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed LB $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_LH: {
@@ -263,7 +269,7 @@ void R5900VCPU::tick() {
                 break;
             }
             gpr[rt].i64 = (int64_t)MMU::self.read16(addr);
-            LOG_VERBOSE("[0x%08x] Executed LH $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed LH $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_LWL:
@@ -277,7 +283,7 @@ void R5900VCPU::tick() {
                 break;
             }
             gpr[rt].i64 = (int64_t)MMU::self.read32(addr);
-            LOG_VERBOSE("[0x%08x] Executed LW $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed LW $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_LBU:
@@ -289,7 +295,7 @@ void R5900VCPU::tick() {
             const int32_t offset = decode_imm_i16(instruction);
             const uint32_t addr = gpr[rs].u32 + offset;
             gpr[rt].i64 = (int64_t)MMU::self.read32(addr);
-            LOG_VERBOSE("[0x%08x] Executed LWR $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed LWR $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_LWU: {
@@ -301,7 +307,7 @@ void R5900VCPU::tick() {
                 break;
             }
             gpr[rt].u64 = (uint64_t)MMU::self.read32(addr);
-            LOG_VERBOSE("[0x%08x] Executed LWU $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed LWU $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_SB: {
@@ -309,7 +315,7 @@ void R5900VCPU::tick() {
             const int32_t offset = decode_imm_i16(instruction);
             const uint32_t addr = gpr[rs].u32 + offset;
             MMU::self.write8(addr, gpr[rt].u8);
-            LOG_VERBOSE("[0x%08x] Executed SB $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed SB $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_SH: {
@@ -321,7 +327,7 @@ void R5900VCPU::tick() {
                 break;
             }
             MMU::self.write16(addr, gpr[rt].u16);
-            LOG_VERBOSE("[0x%08x] Executed SH $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed SH $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_SWL:
@@ -335,7 +341,7 @@ void R5900VCPU::tick() {
                 break;
             }
             MMU::self.write32(addr, gpr[rt].u32);
-            LOG_VERBOSE("[0x%08x] Executed SW $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed SW $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_SDL:
@@ -365,7 +371,7 @@ void R5900VCPU::tick() {
                 break;
             }
             gpr[rt].i64 = (int64_t)MMU::self.read64(addr);
-            LOG_VERBOSE("[0x%08x] Executed LW $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed LW $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_SWC0:
@@ -387,7 +393,7 @@ void R5900VCPU::tick() {
                 break;
             }
             MMU::self.write64(addr, gpr[rt].u64);
-            LOG_VERBOSE("[0x%08x] Executed SD $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_I("[0x%08x] Executed SD $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         default:
