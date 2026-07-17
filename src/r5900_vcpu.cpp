@@ -356,8 +356,18 @@ void R5900VCPU::tick() {
             break;
         case MIPS_OP_LQC2:
             break;
-        case MIPS_OP_LD:
+        case MIPS_OP_LD: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            if (addr & 7) {
+                LOG_ERROR("[0x%08x] LW unaligned address 0x%x", current_pc, addr);
+                break;
+            }
+            gpr[rt].i64 = (int64_t)MMU::self.read64(addr);
+            LOG_VERBOSE("[0x%08x] Executed LW $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
+        }
         case MIPS_OP_SWC0:
             break;
         case MIPS_OP_SWC1:
@@ -368,8 +378,18 @@ void R5900VCPU::tick() {
             break;
         case MIPS_OP_SQC2:
             break;
-        case MIPS_OP_SD:
+        case MIPS_OP_SD: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            if (addr & 7) {
+                LOG_ERROR("[0x%08x] SD unaligned address 0x%x", current_pc, addr);
+                break;
+            }
+            MMU::self.write64(addr, gpr[rt].u64);
+            LOG_VERBOSE("[0x%08x] Executed SD $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
+        }
         default:
             break;
     }
@@ -704,10 +724,18 @@ void R5900VCPU::exec_regimm(uint32_t instruction) {
             break;
         case MIPS_REGIMM_BGEZALL:
             break;
-        case MIPS_REGIMM_MTSAB:
+        case MIPS_REGIMM_MTSAB: {
+            const uint32_t rs = decode_rs(instruction);
+            const uint32_t imm = decode_imm_u16(instruction);
+            reg_sa = ((gpr[rs].u64 & 0xF) ^ (imm ^ 0xF)) << 3;
             break;
-        case MIPS_REGIMM_MTSAH:
+        }
+        case MIPS_REGIMM_MTSAH: {
+            const uint32_t rs = decode_rs(instruction);
+            const uint32_t imm = decode_imm_u16(instruction);
+            reg_sa = ((gpr[rs].u64 & 0x7) ^ (imm ^ 0x7)) << 4;
             break;
+        }
         default:
             break;
     }

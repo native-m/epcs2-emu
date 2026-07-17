@@ -42,11 +42,15 @@ struct MMU {
 
     inline uint32_t read32(uint32_t addr) { return *reinterpret_cast<uint32_t*>(vm_base_address + addr); }
 
+    inline uint64_t read64(uint32_t addr) { return *reinterpret_cast<uint64_t*>(vm_base_address + addr); }
+
     inline void write8(uint32_t addr, uint8_t data) { *reinterpret_cast<uint8_t*>(vm_base_address + addr) = data; }
 
     inline void write16(uint32_t addr, uint16_t data) { *reinterpret_cast<uint16_t*>(vm_base_address + addr) = data; }
 
     inline void write32(uint32_t addr, uint32_t data) { *reinterpret_cast<uint32_t*>(vm_base_address + addr) = data; }
+
+    inline void write64(uint32_t addr, uint64_t data) { *reinterpret_cast<uint64_t*>(vm_base_address + addr) = data; }
 
     void write(uint32_t start_addr, const void* src, size_t size);
 
