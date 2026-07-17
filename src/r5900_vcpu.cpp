@@ -95,11 +95,11 @@ void R5900VCPU::tick() {
         }
         case MIPS_OP_ADDI: {
             const auto [rs, rt] = decode_rs_rt(instruction);
-            const int32_t a = gpr[rt].i32;
+            const int32_t a = gpr[rs].i32;
             const int32_t b = (int32_t)decode_imm_i16(instruction);
             int32_t result;
             if (!add_overflow(a, b, result)) {
-                gpr[rs].i64 = result;
+                gpr[rt].i64 = result;
             } else {
                 // TODO: handle overflow
                 LOG_I("[0x%08x] ADDI overflow!", current_pc);
