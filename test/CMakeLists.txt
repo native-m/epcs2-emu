@@ -4,7 +4,8 @@ add_library(catch2 STATIC
 )
 
 macro(epcs2_add_test _NAME _SOURCE)
-    add_executable(${_NAME} ${_SOURCE})
+    set(${_NAME}_SOURCE ${_SOURCE} "epcs2_r5900_isa_test.h")
+    add_executable(${_NAME} ${${_NAME}_SOURCE})
     target_link_libraries(${_NAME} PRIVATE epcs2-emu-lib catch2)
     set_target_properties(${_NAME} PROPERTIES CXX_STANDARD 20)
     add_test(NAME ${_NAME} COMMAND ${_NAME})

@@ -1,3 +1,4 @@
+#include "core/log.h"
 #include "mips_instr.h"
 #include "mmu.h"
 #include "r5900_vcpu.h"
@@ -15,7 +16,7 @@ struct R5900ISATestFixture {
         instructions.push_back(epcs2::encode_itype(epcs2::MIPS_OP_LUI, dst_reg, dst_reg, hi));
         instructions.push_back(epcs2::encode_itype(epcs2::MIPS_OP_ORI, dst_reg, dst_reg, lo));
     }
-    
+
     void push_instruction(uint32_t i) { instructions.push_back(i); }
 
     void push_branch_inst(uint32_t i) {
@@ -33,5 +34,6 @@ struct R5900ISATestFixture {
         }
 
         epcs2::MMU::self.erase(0x00100000, instructions.size() * sizeof(uint32_t));
+        instructions.clear();
     }
 };
