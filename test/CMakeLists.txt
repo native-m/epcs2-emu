@@ -10,4 +10,4 @@ macro(epcs2_add_test _NAME _SOURCE)
     add_test(NAME ${_NAME} COMMAND ${_NAME})
 endmacro()
 
-epcs2_add_test("epcs2_r5900_main_opcode_test" "epcs2_r5900_main_opcode_test.cpp")
+epcs2_add_test("epcs2_r5900_isa_ialu_test" "epcs2_r5900_isa_ialu_test.cpp")
