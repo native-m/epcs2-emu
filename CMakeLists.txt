@@ -28,5 +28,6 @@ if (WIN32)
 endif()
 
 add_executable(epcs2-emu "src/app.cpp")
+target_link_libraries(epcs2-emu PRIVATE epcs2-emu-lib)
 
 add_subdirectory(test)
