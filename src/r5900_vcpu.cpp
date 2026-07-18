@@ -502,7 +502,7 @@ void R5900VCPU::exec_special(uint32_t instruction) {
         }
         case MIPS_SPECIAL_MULT: {
             const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
-            const int64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
+            const uint64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
             lo.u64 = (int64_t)(int32_t)(result);
             hi.u64 = (int64_t)(int32_t)(result >> 32);
             break;
@@ -801,7 +801,7 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             const int64_t a = (int64_t)(lo.u64 | (hi.u64 << 32));
             const int64_t b = (int64_t)gpr[rs].i32;
             const int64_t c = (int64_t)gpr[rt].i32;
-            const int64_t result = a + b * c;
+            const uint64_t result = a + b * c;
             lo.i64 = (int64_t)(int32_t)(result);
             hi.i64 = (int64_t)(int32_t)(result >> 32);
             gpr[rd].i64 = lo.i64;
@@ -847,7 +847,7 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
         }
         case R5900_MMI_MULT1: {
             const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
-            const int64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
+            const uint64_t result = (int64_t)gpr[rs].i32 * (int64_t)gpr[rt].i32;
             lo.i128.i64_2[1] = (int64_t)(int32_t)(result);
             hi.i128.i64_2[1] = (int64_t)(int32_t)(result >> 32);
             gpr[rd].i64 = lo.i128.i64_2[1];
@@ -861,10 +861,36 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             gpr[rd].i64 = lo.i128.i64_2[1];
             break;
         }
-        case R5900_MMI_DIV1:
+        case R5900_MMI_DIV1: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const int32_t a = gpr[rs].i32;
+            const int32_t b = gpr[rt].i32;
+            if (b == 0) [[unlikely]] {
+                lo.i128.i64_2[1] = a >= 0 ? ~0U : 1u;
+                hi.i128.i64_2[1] = (int64_t)a;
+            } else if (a == INT32_MIN && b == -1) [[unlikely]] {
+                // Does not raise exception, instead return these following values
+                lo.i128.i64_2[1] = 0x80000000;
+                hi.i128.i64_2[1] = 0;
+            } else [[likely]] {
+                lo.i128.i64_2[1] = a / b;
+                hi.i128.i64_2[1] = a % b;
+            }
             break;
-        case R5900_MMI_DIVU1:
+        }
+        case R5900_MMI_DIVU1: {
+            const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
+            const uint32_t a = gpr[rs].u32;
+            const uint32_t b = gpr[rt].u32;
+            if (b == 0) [[unlikely]] {
+                lo.i128.i64_2[1] = ~0U;
+                hi.i128.i64_2[1] = a;
+            } else [[likely]] {
+                lo.i128.i64_2[1] = a / b;
+                hi.i128.i64_2[1] = a % b;
+            }
             break;
+        }
         case R5900_MMI_MADD1: {
             const auto [rs, rt, rd] = decode_rs_rt_rd(instruction);
             const uint64_t lo_h = lo.u128.u64_2[1] & 0xFFFFFFFF;
@@ -872,7 +898,7 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             const int64_t a = (int64_t)(lo_h | (hi_h << 32));
             const int64_t b = (int64_t)gpr[rs].i32;
             const int64_t c = (int64_t)gpr[rt].i32;
-            const int64_t result = a + b * c;
+            const uint64_t result = a + b * c;
             lo.i128.i64_2[1] = (int64_t)(int32_t)(result);
             hi.i128.i64_2[1] = (int64_t)(int32_t)(result >> 32);
             gpr[rd].i64 = lo.i128.i64_2[1];
@@ -892,11 +918,74 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             break;
         }
         case R5900_MMI_MMI1:
+
             break;
         case R5900_MMI_MMI3:
             break;
-        case R5900_MMI_PMFHL:
+        case R5900_MMI_PMFHL: {
+            const uint32_t rd = decode_rd(instruction);
+            const uint32_t fmt = decode_sa(instruction);
+            switch (fmt) {
+                case 0: { // PMFHL.LW
+                    const uint32_t lo0 = lo.u128.u32_4[0];
+                    const uint32_t lo1 = lo.u128.u32_4[2];
+                    const uint32_t hi0 = hi.u128.u32_4[0];
+                    const uint32_t hi1 = hi.u128.u32_4[2];
+                    gpr[rd].u128.u32_4[0] = lo0;
+                    gpr[rd].u128.u32_4[1] = hi0;
+                    gpr[rd].u128.u32_4[2] = lo1;
+                    gpr[rd].u128.u32_4[3] = hi1;
+                    break;
+                }
+                case 1: { // PMFHL.UW
+                    const uint32_t lo0 = lo.u128.u32_4[1];
+                    const uint32_t lo1 = lo.u128.u32_4[3];
+                    const uint32_t hi0 = hi.u128.u32_4[1];
+                    const uint32_t hi1 = hi.u128.u32_4[3];
+                    gpr[rd].u128.u32_4[0] = lo0;
+                    gpr[rd].u128.u32_4[1] = hi0;
+                    gpr[rd].u128.u32_4[2] = lo1;
+                    gpr[rd].u128.u32_4[3] = hi1;
+                    break;
+                }
+                case 2: { // PMFHL.SLW
+                    break;
+                }
+                case 3: { // PMFHL.LH
+                    uint64_t lo_tmp0 = lo.u128.u64_2[0] & 0x0000FFFF0000FFFF;
+                    uint64_t lo_tmp1 = lo.u128.u64_2[1] & 0x0000FFFF0000FFFF;
+                    uint64_t hi_tmp0 = hi.u128.u64_2[0] & 0x0000FFFF0000FFFF;
+                    uint64_t hi_tmp1 = hi.u128.u64_2[1] & 0x0000FFFF0000FFFF;
+                    lo_tmp0 = (uint32_t)(lo_tmp0 | ((lo_tmp0 >> 32) << 16));
+                    lo_tmp1 = (uint32_t)(lo_tmp1 | ((lo_tmp1 >> 32) << 16));
+                    hi_tmp0 = (uint32_t)(lo_tmp0 | ((lo_tmp0 >> 32) << 16));
+                    hi_tmp1 = (uint32_t)(lo_tmp1 | ((lo_tmp1 >> 32) << 16));
+                    gpr[rd].u128.u64_2[0] = lo_tmp0 | (hi_tmp0 << 32);
+                    gpr[rd].u128.u64_2[1] = lo_tmp1 | (hi_tmp1 << 32);
+                    break;
+                }
+                case 4: { // PMFHL.SH
+                    const int32_t lo0 = std::max(std::min(lo.i128.i32_4[0], 32767), -32768);
+                    const int32_t lo1 = std::max(std::min(lo.i128.i32_4[1], 32767), -32768);
+                    const int32_t lo2 = std::max(std::min(lo.i128.i32_4[2], 32767), -32768);
+                    const int32_t lo3 = std::max(std::min(lo.i128.i32_4[3], 32767), -32768);
+                    const int32_t hi0 = std::max(std::min(hi.i128.i32_4[0], 32767), -32768);
+                    const int32_t hi1 = std::max(std::min(hi.i128.i32_4[1], 32767), -32768);
+                    const int32_t hi2 = std::max(std::min(hi.i128.i32_4[2], 32767), -32768);
+                    const int32_t hi3 = std::max(std::min(hi.i128.i32_4[3], 32767), -32768);
+                    gpr[rd].i128.i16_8[0] = (uint16_t)lo0;
+                    gpr[rd].i128.i16_8[1] = (uint16_t)lo1;
+                    gpr[rd].i128.i16_8[2] = (uint16_t)hi0;
+                    gpr[rd].i128.i16_8[3] = (uint16_t)hi1;
+                    gpr[rd].i128.i16_8[4] = (uint16_t)lo2;
+                    gpr[rd].i128.i16_8[5] = (uint16_t)lo3;
+                    gpr[rd].i128.i16_8[6] = (uint16_t)hi2;
+                    gpr[rd].i128.i16_8[7] = (uint16_t)hi3;
+                    break;
+                }
+            }
             break;
+        }
         case R5900_MMI_PMTHL:
             break;
         case R5900_MMI_PSLLH: {

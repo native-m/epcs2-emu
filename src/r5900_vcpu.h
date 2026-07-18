@@ -1,6 +1,7 @@
 #pragma once
 
 #include "r5900_regs.h"
+#include <utility>
 
 namespace epcs2 {
 
@@ -20,6 +21,7 @@ struct R5900VCPU {
 
     void set_pc(uint32_t addr);
     void tick();
+
     void exec_special(uint32_t instruction);
     void exec_regimm(uint32_t instruction);
     void exec_fpu(uint32_t instruction);
