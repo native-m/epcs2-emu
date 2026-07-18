@@ -35,5 +35,7 @@ struct R5900ISATestFixture {
 
         epcs2::MMU::self.erase(0x00100000, instructions.size() * sizeof(uint32_t));
         instructions.clear();
+
+        LOG_VERBOSE("R5900 ISA test program executed. Total instructions executed: %d", num_instructions);
     }
 };
