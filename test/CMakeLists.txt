@@ -12,3 +12,4 @@ macro(epcs2_add_test _NAME _SOURCE)
 endmacro()
 
 epcs2_add_test("epcs2_r5900_isa_ialu_test" "epcs2_r5900_isa_ialu_test.cpp")
+epcs2_add_test("epcs2_r5900_isa_muldiv_test" "epcs2_r5900_isa_muldiv_test.cpp")
