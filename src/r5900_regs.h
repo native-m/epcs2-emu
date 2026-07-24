@@ -19,6 +19,7 @@ union R5900Register {
 
 union R5900RegisterFPU {
     float f32;
+    int32_t i32;
     uint32_t u32;
 };
 

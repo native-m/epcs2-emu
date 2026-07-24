@@ -4,7 +4,9 @@
 #include "core/log.h"
 #include "mips_instr.h"
 #include "mmu.h"
+
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 
 #define LOG_INSTRUCTION_EXEC 1
@@ -354,8 +356,18 @@ void R5900VCPU::tick() {
             break;
         case MIPS_OP_LWC0:
             break;
-        case MIPS_OP_LWC1:
+        case MIPS_OP_LWC1: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            if (addr & 3) {
+                LOG_ERROR("[0x%08x] LWC1 unaligned address 0x%x", current_pc, addr);
+                break;
+            }
+            fpr[rt].u32 = MMU::self.read32(addr);
+            LOG_EXEC("[0x%08x] Executed LWC1 $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
+        }
         case MIPS_OP_LWC2:
             break;
         case MIPS_OP_LWC3_PREF:
@@ -367,17 +379,27 @@ void R5900VCPU::tick() {
             const int32_t offset = decode_imm_i16(instruction);
             const uint32_t addr = gpr[rs].u32 + offset;
             if (addr & 7) {
-                LOG_ERROR("[0x%08x] LW unaligned address 0x%x", current_pc, addr);
+                LOG_ERROR("[0x%08x] LD unaligned address 0x%x", current_pc, addr);
                 break;
             }
             gpr[rt].i64 = (int64_t)MMU::self.read64(addr);
-            LOG_EXEC("[0x%08x] Executed LW $%d, %d($%d)", current_pc, rt, offset, rs);
+            LOG_EXEC("[0x%08x] Executed LD $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
         }
         case MIPS_OP_SWC0:
             break;
-        case MIPS_OP_SWC1:
+        case MIPS_OP_SWC1: {
+            const auto [rs, rt] = decode_rs_rt(instruction);
+            const int32_t offset = decode_imm_i16(instruction);
+            const uint32_t addr = gpr[rs].u32 + offset;
+            if (addr & 3) {
+                LOG_ERROR("[0x%08x] SWC1 unaligned address 0x%x", current_pc, addr);
+                break;
+            }
+            MMU::self.write32(addr, fpr[rt].u32);
+            LOG_EXEC("[0x%08x] Executed SWC1 $%d, %d($%d)", current_pc, rt, offset, rs);
             break;
+        }
         case MIPS_OP_SWC2:
             break;
         case MIPS_OP_SWC3:
@@ -794,67 +816,173 @@ void R5900VCPU::exec_regimm(uint32_t instruction) {
 
 void R5900VCPU::exec_fpu(uint32_t instruction) {
     MIPSFpuSFunction func = decode_func<MIPSFpuSFunction>(instruction);
-    switch (func) {
-        case MIPS_FPU_S_ADD_S: {
-            break;
+    uint32_t mode = decode_rs(instruction);
+    if (mode == 16) {
+        switch (func) {
+            case MIPS_FPU_S_ADD_S: {
+                const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+                write_fpr(fd, fpr[fs].f32 + fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed ADD.S $f%d, $f%d, $f%d", current_pc, fs, ft, fd);
+                break;
+            }
+            case MIPS_FPU_S_SUB_S: {
+                const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+                write_fpr(fd, fpr[fs].f32 - fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed SUB.S $f%d, $f%d, $f%d", current_pc, fs, ft, fd);
+                break;
+            }
+            case MIPS_FPU_S_MUL_S: {
+                const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+                write_fpr(fd, fpr[fs].f32 * fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed MUL.S $f%d, $f%d, $f%d", current_pc, fs, ft, fd);
+                break;
+            }
+            case MIPS_FPU_S_DIV_S: {
+                const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+                write_fpr(fd, fpr[fs].f32 / fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed DIV.S $f%d, $f%d, $f%d", current_pc, fs, ft, fd);
+                break;
+            }
+            case MIPS_FPU_S_SQRT_S: {
+                const auto [fs, fd] = decode_rd_sa(instruction);
+                const float x = fpr[fs].f32;
+                const float value = std::sqrt(std::abs(x));
+                if (x < 0.0f) {
+                    control_fpu.invalid_operation = 1;
+                    control_fpu.invalid_operation_s = 1;
+                } else {
+                    control_fpu.invalid_operation = 0;
+                }
+                control_fpu.division_by_zero = 0;
+                fpr[fd].f32 = value;
+                LOG_EXEC("[0x%08x] Executed SQRT.S $f%d, $f%d", current_pc, fs, fd);
+                break;
+            }
+            case MIPS_FPU_S_ABS_S: {
+                const uint32_t rt = decode_rt(instruction);
+                const uint32_t sa = decode_sa(instruction);
+                fpr[sa].u32 = fpr[rt].u32 & 0x7fffffff;
+                control_fpu.overflow = 0;
+                control_fpu.underflow = 0;
+                LOG_EXEC("[0x%08x] Executed ABS.S $f%d, $f%d", current_pc, rt, sa);
+                break;
+            }
+            case MIPS_FPU_S_MOV_S: {
+                const uint32_t rt = decode_rt(instruction);
+                const uint32_t sa = decode_sa(instruction);
+                fpr[sa].f32 = fpr[rt].f32;
+                LOG_EXEC("[0x%08x] Executed MOV.S $f%d, $f%d", current_pc, rt, sa);
+                break;
+            }
+            case MIPS_FPU_S_NEG_S: {
+                const uint32_t rt = decode_rt(instruction);
+                const uint32_t sa = decode_sa(instruction);
+                fpr[sa].f32 = -fpr[rt].f32;
+                control_fpu.overflow = 0;
+                control_fpu.underflow = 0;
+                LOG_EXEC("[0x%08x] Executed NEG.S $f%d, $f%d", current_pc, rt, sa);
+                break;
+            }
+            case MIPS_FPU_S_RSQRT_S: {
+                const auto [fs, fd] = decode_rd_sa(instruction);
+                const float x = fpr[fs].f32;
+                const float value = 1.0f / std::sqrt(std::abs(x));
+                if (x < 0.0f) {
+                    control_fpu.invalid_operation = 1;
+                    control_fpu.invalid_operation_s = 1;
+                } else if (x == 0.0f) {
+                    control_fpu.division_by_zero = 1;
+                    control_fpu.division_by_zero_s = 1;
+                }
+                write_fpr2(fd, value);
+                LOG_EXEC("[0x%08x] Executed RSQRT.S $f%d, $f%d", current_pc, fs, fd);
+                break;
+            }
+            case MIPS_FPU_S_ADDA_S: {
+                const auto [ft, fs] = decode_rt_rd(instruction);
+                write_facc(fpr[fs].f32 + fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed ADDA.S $f%d, $f%d", current_pc, fs, ft);
+                break;
+            }
+            case MIPS_FPU_S_SUBA_S: {
+                const auto [ft, fs] = decode_rt_rd(instruction);
+                write_facc(fpr[fs].f32 - fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed SUBA.S $f%d, $f%d", current_pc, fs, ft);
+                break;
+            }
+            case MIPS_FPU_S_MULA_S: {
+                const auto [ft, fs] = decode_rt_rd(instruction);
+                write_facc(fpr[fs].f32 * fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed MULA.S $f%d, $f%d", current_pc, fs, ft);
+                break;
+            }
+            case MIPS_FPU_S_MADD_S: {
+                const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+                write_fpr(fd, facc.f32 + fpr[fs].f32 * fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed MADD.S $f%d, $f%d, $f%d", current_pc, fs, ft, fd);
+                break;
+            }
+            case MIPS_FPU_S_MSUB_S: {
+                const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+                write_fpr(fd, facc.f32 - fpr[fs].f32 * fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed MSUB.S $f%d, $f%d, $f%d", current_pc, fs, ft, fd);
+                break;
+            }
+            case MIPS_FPU_S_MADDA_S: {
+                const auto [ft, fs] = decode_rt_rd(instruction);
+                write_facc(facc.f32 + fpr[fs].f32 * fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed MADDA.S $f%d, $f%d", current_pc, fs, ft);
+                break;
+            }
+            case MIPS_FPU_S_MSUBA_S: {
+                const auto [ft, fs] = decode_rt_rd(instruction);
+                write_facc(facc.f32 - fpr[fs].f32 * fpr[ft].f32);
+                LOG_EXEC("[0x%08x] Executed MSUBA.S $f%d, $f%d", current_pc, fs, ft);
+                break;
+            }
+            case MIPS_FPU_S_CVT_W: {
+                const auto [fs, fd] = decode_rd_sa(instruction);
+                fpr[fd].i32 = (int32_t)fpr[fs].f32;
+                LOG_EXEC("[0x%08x] Executed CVT.W.S $f%d, $f%d", current_pc, fs, fd);
+                break;
+            }
+            case MIPS_FPU_S_MAX_S: {
+                const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+                float a = fpr[rd].f32;
+                float b = fpr[rt].f32;
+                fpr[sa].f32 = a >= b ? a : b;
+                control_fpu.overflow = 0;
+                control_fpu.underflow = 0;
+                LOG_EXEC("[0x%08x] Executed MAX.S $f%d, $f%d, $f%d", current_pc, rd, rt, sa);
+                break;
+            }
+            case MIPS_FPU_S_MIN_S: {
+                const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
+                float a = fpr[rd].f32;
+                float b = fpr[rt].f32;
+                fpr[sa].f32 = a <= b ? a : b;
+                control_fpu.overflow = 0;
+                control_fpu.underflow = 0;
+                LOG_EXEC("[0x%08x] Executed MIN.S $f%d, $f%d, $f%d", current_pc, rd, rt, sa);
+                break;
+            }
+            case MIPS_FPU_S_C_F: {
+                break;
+            }
+            case MIPS_FPU_S_C_EQ: {
+                break;
+            }
+            case MIPS_FPU_S_C_LT: {
+                break;
+            }
+            case MIPS_FPU_S_C_LE: {
+                break;
+            }
         }
-        case MIPS_FPU_S_SUB_S: {
-            break;
-        }
-        case MIPS_FPU_S_MUL_S: {
-            break;
-        }
-        case MIPS_FPU_S_DIV_S: {
-            break;
-        }
-        case MIPS_FPU_S_SQRT_S: {
-            break;
-        }
-        case MIPS_FPU_S_ABS_S: {
-            const uint32_t rt = decode_rt(instruction);
-            const uint32_t sa = decode_sa(instruction);
-            fpr[sa].u32 = fpr[rt].u32 & 0x7fffffff;
-            control_fpu.overflow = 0;
-            control_fpu.underflow = 0;
-            LOG_EXEC("[0x%08x] Executed ABS.S $f%d, $f%d", current_pc, rt, sa);
-            break;
-        }
-        case MIPS_FPU_S_MOV_S: {
-            const uint32_t rt = decode_rt(instruction);
-            const uint32_t sa = decode_sa(instruction);
-            fpr[sa].f32 = fpr[rt].f32;
-            LOG_EXEC("[0x%08x] Executed MOV.S $f%d, $f%d", current_pc, rt, sa);
-            break;
-        }
-        case MIPS_FPU_S_NEG_S: {
-            const uint32_t rt = decode_rt(instruction);
-            const uint32_t sa = decode_sa(instruction);
-            fpr[sa].f32 = -fpr[rt].f32;
-            control_fpu.overflow = 0;
-            control_fpu.underflow = 0;
-            LOG_EXEC("[0x%08x] Executed NEG.S $f%d, $f%d", current_pc, rt, sa);
-            break;
-        }
-        case MIPS_FPU_S_MAX_S: {
-            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
-            float a = fpr[rd].f32;
-            float b = fpr[rt].f32;
-            fpr[sa].f32 = a >= b ? a : b;
-            control_fpu.overflow = 0;
-            control_fpu.underflow = 0;
-            LOG_EXEC("[0x%08x] Executed MAX.S $f%d, $f%d, $f%d", current_pc, rd, rt, sa);
-            break;
-        }
-        case MIPS_FPU_S_MIN_S: {
-            const auto [rt, rd, sa] = decode_rt_rd_sa(instruction);
-            float a = fpr[rd].f32;
-            float b = fpr[rt].f32;
-            fpr[sa].f32 = a <= b ? a : b;
-            control_fpu.overflow = 0;
-            control_fpu.underflow = 0;
-            LOG_EXEC("[0x%08x] Executed MIN.S $f%d, $f%d, $f%d", current_pc, rd, rt, sa);
-            break;
-        }
+    } else if (mode == 20 && func == MIPS_FPU_W_CVT_S) {
+        const auto [ft, fs, fd] = decode_rt_rd_sa(instruction);
+        fpr[fd].f32 = (float)(int32_t)fpr[fs].i32;
+        LOG_EXEC("[0x%08x] Executed CVT.S.W $f%d, $f%d", current_pc, fs, fd);
     }
 }
 
@@ -993,7 +1121,6 @@ void R5900VCPU::exec_mmi(uint32_t instruction) {
             break;
         }
         case R5900_MMI_MMI1:
-
             break;
         case R5900_MMI_MMI3:
             break;

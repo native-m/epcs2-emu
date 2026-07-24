@@ -394,6 +394,20 @@ inline std::pair<uint32_t, uint32_t> decode_rs_rd(uint32_t instruction) {
     };
 }
 
+inline std::tuple<uint32_t, uint32_t> decode_rt_rd(uint32_t instruction) {
+    return {
+        (instruction >> 16) & 0x1f,
+        (instruction >> 11) & 0x1f,
+    };
+}
+
+inline std::pair<uint32_t, uint32_t> decode_rd_sa(uint32_t instruction) {
+    return {
+        (instruction >> 11) & 0x1f,
+        (instruction >> 6) & 0x1f,
+    };
+}
+
 inline std::tuple<uint32_t, uint32_t, uint32_t> decode_rs_rt_rd(uint32_t instruction) {
     return {
         (instruction >> 21) & 0x1f,
