@@ -1,11 +1,12 @@
 #include "log.h"
 
-#include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 
-#include <iostream>
-#include <cstdio>
 #include <cstdarg>
+#include <cstdio>
+#include <iostream>
 
 namespace epcs2 {
 
@@ -13,8 +14,10 @@ static std::shared_ptr<spdlog::logger> s_logger;
 
 void Log::initialize() {
     try {
-        s_logger = spdlog::basic_logger_mt("epcs2", "epcs2.log");
-    } catch (const spdlog::spdlog_ex &ex) {
+        auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("epcs2.log", true);
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        s_logger = std::make_shared<spdlog::logger>("epcs2", spdlog::sinks_init_list {file_sink, console_sink});
+    } catch (const spdlog::spdlog_ex& ex) {
         std::cout << "Log initialization failed: " << ex.what() << std::endl;
     }
 }
@@ -46,4 +49,4 @@ void Log::error(const char* fmt, ...) {
     s_logger->error(buffer);
 }
 
-}
+} // namespace epcs2
