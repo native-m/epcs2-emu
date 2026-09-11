@@ -9,3 +9,14 @@
 #define LOG_ERROR(...)   {std::printf("[E] " __VA_ARGS__); std::printf("\n");}
 #define LOG_FATAL(...)   {std::printf("[F] " __VA_ARGS__); std::printf("\n");}
 // clang-format on
+
+namespace epcs2 {
+
+struct Log {
+    static void initialize();
+    static void info(const char* fmt, ...);
+    static void debug(const char* fmt, ...);
+    static void error(const char* fmt, ...);
+};
+
+}
